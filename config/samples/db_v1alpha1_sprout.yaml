@@ -1,0 +1,17 @@
+apiVersion: db.sproutdb.dev/v1alpha1
+kind: Sprout
+metadata:
+  labels:
+    app.kubernetes.io/name: sprout
+    app.kubernetes.io/managed-by: kustomize
+  name: sprout-sample
+spec:
+  provider: postgres
+  connection:
+    host: postgres.default.svc.cluster.local
+    port: 5432
+    adminSecretRef:
+      name: postgres-admin-creds
+  # databaseName: myapp-pr-123      # optional; defaults to a name derived
+  #                                  # from this Sprout's namespace/name
+  # connectionLimit: 20             # optional; defaults to 20

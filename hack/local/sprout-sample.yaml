@@ -1,0 +1,22 @@
+# A Sprout CR for the local-dev loop (see README's Local Development
+# section). Points at 127.0.0.1 rather than the in-cluster Service DNS
+# name (config/samples/db_v1alpha1_sprout.yaml uses that instead) because
+# this is meant to be reconciled by a controller running on the host via
+# `make run`, reaching Postgres through `kubectl port-forward svc/postgres
+# 5432:5432` rather than from inside the cluster network.
+#
+# Usage: kubectl apply -f hack/local/sprout-sample.yaml
+apiVersion: db.sproutdb.dev/v1alpha1
+kind: Sprout
+metadata:
+  name: sprout-local-sample
+spec:
+  provider: postgres
+  connection:
+    host: 127.0.0.1
+    port: 5432
+    adminSecretRef:
+      name: postgres-admin-creds
+  # databaseName: myapp-pr-123      # optional; defaults to a name derived
+  #                                  # from this Sprout's namespace/name
+  # connectionLimit: 20             # optional; defaults to 20

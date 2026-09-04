@@ -1,0 +1,44 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.sproutdb.dev
+  resources:
+  - sprouts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.sproutdb.dev
+  resources:
+  - sprouts/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - db.sproutdb.dev
+  resources:
+  - sprouts/status
+  verbs:
+  - get
+  - patch
+  - update
