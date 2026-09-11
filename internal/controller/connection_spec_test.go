@@ -30,7 +30,7 @@ import (
 var _ = Describe("ConnectionSpec", func() {
 	It("defaults adminDatabase and sslMode when omitted", func() {
 		sprout := &dbv1alpha1.Sprout{
-			ObjectMeta: metav1.ObjectMeta{Name: "conn-defaults", Namespace: "default"},
+			ObjectMeta: metav1.ObjectMeta{Name: "conn-defaults", Namespace: sampleNamespace},
 			Spec: dbv1alpha1.SproutSpec{
 				Provider: sampleProvider,
 				Connection: dbv1alpha1.ConnectionSpec{
@@ -53,7 +53,7 @@ var _ = Describe("ConnectionSpec", func() {
 
 	It("rejects an unknown sslMode", func() {
 		sprout := &dbv1alpha1.Sprout{
-			ObjectMeta: metav1.ObjectMeta{Name: "conn-bad-ssl", Namespace: "default"},
+			ObjectMeta: metav1.ObjectMeta{Name: "conn-bad-ssl", Namespace: sampleNamespace},
 			Spec: dbv1alpha1.SproutSpec{
 				Provider: sampleProvider,
 				Connection: dbv1alpha1.ConnectionSpec{

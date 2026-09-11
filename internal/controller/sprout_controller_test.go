@@ -35,7 +35,7 @@ var _ = Describe("Sprout Controller", func() {
 	Context("When reconciling a resource", func() {
 		const (
 			resourceName      = "test-resource"
-			resourceNamespace = "default"
+			resourceNamespace = sampleNamespace
 		)
 
 		ctx := context.Background()

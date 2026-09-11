@@ -52,6 +52,7 @@ const (
 	sampleProvider    = "postgres"
 	sampleHost        = "postgres.default.svc.cluster.local"
 	sampleAdminSecret = "postgres-admin-creds"
+	sampleNamespace   = "default"
 )
 
 func TestControllers(t *testing.T) {
