@@ -74,6 +74,7 @@ var _ = BeforeSuite(func(ctx context.Context) {
 		AdminUser:     pgSuperuser,
 		AdminPassword: pgSuperuser,
 		AdminDatabase: pgSuperuser,
+		SSLMode:       provisioner.DefaultSSLMode,
 	}
 })
 

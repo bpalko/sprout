@@ -68,6 +68,25 @@ type ConnectionSpec struct {
 	// bringing your own.
 	// +required
 	AdminSecretRef corev1.LocalObjectReference `json:"adminSecretRef"`
+
+	// adminDatabase is the database name used as dbname= when the
+	// operator opens its privileged session. Postgres requires a
+	// connection to some existing database before it can run CREATE
+	// DATABASE; this is that database, not the Sprout's own database
+	// and not a template. Defaults to "postgres".
+	// +kubebuilder:default="postgres"
+	// +kubebuilder:validation:MaxLength=63
+	// +optional
+	AdminDatabase string `json:"adminDatabase,omitempty"`
+
+	// sslMode is the libpq SSL mode used for both the operator connection
+	// and the tenant credentials Secret. Defaults to "prefer": try TLS
+	// and fall back if the server has it disabled (typical of local
+	// Postgres images).
+	// +kubebuilder:default="prefer"
+	// +kubebuilder:validation:Enum=disable;allow;prefer;require;verify-ca;verify-full
+	// +optional
+	SSLMode string `json:"sslMode,omitempty"`
 }
 
 type SproutSpec struct {

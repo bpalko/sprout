@@ -63,6 +63,16 @@ spec:
                   connection describes the target database instance and how to
                   authenticate to it as an admin.
                 properties:
+                  adminDatabase:
+                    default: postgres
+                    description: |-
+                      adminDatabase is the database name used as dbname= when the
+                      operator opens its privileged session. Postgres requires a
+                      connection to some existing database before it can run CREATE
+                      DATABASE; this is that database, not the Sprout's own database
+                      and not a template. Defaults to "postgres".
+                    maxLength: 63
+                    type: string
                   adminSecretRef:
                     description: |-
                       adminSecretRef names a Secret, in the same namespace as this Sprout,
@@ -93,6 +103,21 @@ spec:
                     maximum: 65535
                     minimum: 1
                     type: integer
+                  sslMode:
+                    default: prefer
+                    description: |-
+                      sslMode is the libpq SSL mode used for both the operator connection
+                      and the tenant credentials Secret. Defaults to "prefer": try TLS
+                      and fall back if the server has it disabled (typical of local
+                      Postgres images).
+                    enum:
+                    - disable
+                    - allow
+                    - prefer
+                    - require
+                    - verify-ca
+                    - verify-full
+                    type: string
                 required:
                 - adminSecretRef
                 - host

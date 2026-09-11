@@ -22,6 +22,15 @@ package provisioner
 
 import "context"
 
+// Default connection values applied when a Sprout omits the corresponding
+// spec.connection fields. Matching the CRD defaults keeps tests and the
+// provisioner itself well-defined even when the object never passed
+// through API-server defaulting.
+const (
+	DefaultAdminDatabase = "postgres"
+	DefaultSSLMode       = "prefer"
+)
+
 // ConnectionConfig describes how to reach a target database instance as an
 // admin. It is built from a Sprout's spec.connection plus the resolved
 // contents of its adminSecretRef.
@@ -30,9 +39,14 @@ type ConnectionConfig struct {
 	Port          int32
 	AdminUser     string
 	AdminPassword string
-	// AdminDatabase is the database the admin connection is made against
-	// to issue CREATE DATABASE/ROLE statements (e.g. "postgres").
+	// AdminDatabase is the database name used as dbname= when opening the
+	// privileged session (e.g. "postgres"). Postgres requires a connection
+	// to some existing database before it can run CREATE DATABASE; this
+	// is that database, not the Sprout's own database and not a template.
 	AdminDatabase string
+	// SSLMode is the libpq sslmode used for this connection (e.g. "prefer",
+	// "require"). Empty is treated as DefaultSSLMode.
+	SSLMode string
 }
 
 // DatabaseSpec identifies the logical database a Provisioner operates on,

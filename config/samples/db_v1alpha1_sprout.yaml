@@ -12,6 +12,8 @@ spec:
     port: 5432
     adminSecretRef:
       name: postgres-admin-creds
+    # adminDatabase: postgres        # optional; defaults to "postgres"
+    # sslMode: prefer                 # optional; defaults to prefer
   # databaseName: myapp-pr-123      # optional; defaults to a name derived
   #                                  # from this Sprout's namespace/name
   # connectionLimit: 20             # optional; defaults to 20

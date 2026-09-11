@@ -19,7 +19,7 @@ limitations under the License.
 // property the interface promises (idempotency, the ownership-marker
 // safety net, rotation semantics, partial-failure resumability) is
 // expressed here once, against the interface, rather than reimplemented
-// per provider. A new Provisioner (Aurora, Cloud SQL, ...) gets this whole
+// per provider. A new Provisioner gets this whole
 // battery for free by implementing Inspector and calling Run from its own
 // test suite; see internal/provisioner/postgres/postgres_test.go for the
 // reference wiring.

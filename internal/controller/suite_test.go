@@ -48,6 +48,12 @@ var (
 	k8sClient client.Client
 )
 
+const (
+	sampleProvider    = "postgres"
+	sampleHost        = "postgres.default.svc.cluster.local"
+	sampleAdminSecret = "postgres-admin-creds"
+)
+
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
 
