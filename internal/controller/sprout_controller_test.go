@@ -35,7 +35,7 @@ var _ = Describe("Sprout Controller", func() {
 	Context("When reconciling a resource", func() {
 		const (
 			resourceName      = "test-resource"
-			resourceNamespace = "default"
+			resourceNamespace = sampleNamespace
 		)
 
 		ctx := context.Background()
@@ -56,11 +56,11 @@ var _ = Describe("Sprout Controller", func() {
 						Namespace: resourceNamespace,
 					},
 					Spec: dbv1alpha1.SproutSpec{
-						Provider: "postgres",
+						Provider: sampleProvider,
 						Connection: dbv1alpha1.ConnectionSpec{
-							Host:           "postgres.default.svc.cluster.local",
+							Host:           sampleHost,
 							Port:           5432,
-							AdminSecretRef: corev1.LocalObjectReference{Name: "postgres-admin-creds"},
+							AdminSecretRef: corev1.LocalObjectReference{Name: sampleAdminSecret},
 						},
 					},
 				}

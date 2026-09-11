@@ -24,11 +24,24 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/bpalko/sprout/internal/provisioner"
 )
+
+// allowedSSLModes is the libpq sslmode set. Validating here (not just at
+// the CRD) keeps connection-string interpolation from turning an
+// unexpected value into extra keyword-value pairs.
+var allowedSSLModes = map[string]struct{}{
+	"disable":     {},
+	"allow":       {},
+	"prefer":      {},
+	"require":     {},
+	"verify-ca":   {},
+	"verify-full": {},
+}
 
 // ownerMarker is the COMMENT text stamped on a database/role at creation and
 // checked before any later mutation or drop, so a name collision with
@@ -52,10 +65,11 @@ var _ provisioner.Provisioner = (*Provisioner)(nil)
 // (reconciles, not request-path traffic), so a pooled connection isn't
 // worth the added complexity (yet???), and every call just opens and closes its own.
 func connect(ctx context.Context, conn provisioner.ConnectionConfig) (*pgx.Conn, error) {
-	cfg, err := pgx.ParseConfig(fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=prefer",
-		conn.Host, conn.Port, conn.AdminUser, conn.AdminPassword, conn.AdminDatabase,
-	))
+	dsn, err := connString(conn, conn.AdminUser, conn.AdminPassword, conn.AdminDatabase)
+	if err != nil {
+		return nil, err
+	}
+	cfg, err := pgx.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("parsing admin connection config: %w", err)
 	}
@@ -64,6 +78,35 @@ func connect(ctx context.Context, conn provisioner.ConnectionConfig) (*pgx.Conn,
 		return nil, fmt.Errorf("connecting to %s:%d as admin: %w", conn.Host, conn.Port, err)
 	}
 	return pgconn, nil
+}
+
+// connString builds a pgx keyword-value connection string. sslMode and
+// database are validated so they cannot inject extra parameters.
+func connString(conn provisioner.ConnectionConfig, user, password, database string) (string, error) {
+	sslMode := conn.SSLMode
+	if sslMode == "" {
+		sslMode = provisioner.DefaultSSLMode
+	}
+	if _, ok := allowedSSLModes[sslMode]; !ok {
+		return "", fmt.Errorf("unsupported sslmode %q", sslMode)
+	}
+	if database == "" {
+		database = provisioner.DefaultAdminDatabase
+	}
+	if err := validateConnKeyword("dbname", database); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		conn.Host, conn.Port, user, password, database, sslMode,
+	), nil
+}
+
+func validateConnKeyword(key, value string) error {
+	if strings.ContainsAny(value, " ='\\") {
+		return fmt.Errorf("%s %q contains characters that cannot be used in a connection string", key, value)
+	}
+	return nil
 }
 
 // checkOwnership returns nil if the shared-catalog comment on the object

@@ -57,6 +57,7 @@ const (
 	secretKeyPGUser      = "PGUSER"
 	secretKeyPGPassword  = "PGPASSWORD"
 	secretKeyPGDatabase  = "PGDATABASE"
+	secretKeyPGSSLMode   = "PGSSLMODE"
 )
 
 // SproutReconciler reconciles a Sprout object.
@@ -144,10 +145,11 @@ func (r *SproutReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	secretName := sprout.Name
 	existing := &corev1.Secret{}
 	err = r.Get(ctx, types.NamespacedName{Namespace: sprout.Namespace, Name: secretName}, existing)
-	rotate := apierrors.IsNotFound(err)
-	if err != nil && !apierrors.IsNotFound(err) {
+	secretMissing := apierrors.IsNotFound(err)
+	if err != nil && !secretMissing {
 		return ctrl.Result{}, fmt.Errorf("checking for existing credentials secret: %w", err)
 	}
+	rotate := secretMissing || len(existing.Data[secretKeyPGPassword]) == 0
 
 	connLimit := defaultConnectionLimit
 	if sprout.Spec.ConnectionLimit != nil {
@@ -164,15 +166,11 @@ func (r *SproutReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return r.failStatus(ctx, sprout, "RoleProvisionFailed", err.Error())
 	}
 
-	if rotate {
-		secret := buildSecret(sprout, secretName, conn, databaseName, creds)
-		if err := controllerutil.SetControllerReference(sprout, secret, r.Scheme); err != nil {
-			return ctrl.Result{}, fmt.Errorf("setting owner reference on secret: %w", err)
-		}
-		if err := r.Create(ctx, secret); err != nil {
-			return ctrl.Result{}, fmt.Errorf("creating credentials secret: %w", err)
-		}
-		log.Info("credentials secret (re)created", "secret", secretName, "reason", "missing on reconcile")
+	if !rotate {
+		creds.Password = string(existing.Data[secretKeyPGPassword])
+	}
+	if err := r.publishCredentialsSecret(ctx, sprout, secretName, conn, databaseName, creds, existing, secretMissing); err != nil {
+		return ctrl.Result{}, err
 	}
 	r.setCondition(sprout, dbv1alpha1.ConditionSecretReady, metav1.ConditionTrue, "Published", "credentials secret exists and matches the current role")
 
@@ -286,21 +284,85 @@ func (r *SproutReconciler) resolveConnection(ctx context.Context, sprout *dbv1al
 		return provisioner.ConnectionConfig{}, fmt.Errorf("admin secret %s missing key %q", key, corev1.BasicAuthPasswordKey)
 	}
 
+	adminDatabase := sprout.Spec.Connection.AdminDatabase
+	if adminDatabase == "" {
+		adminDatabase = provisioner.DefaultAdminDatabase
+	}
+	sslMode := sprout.Spec.Connection.SSLMode
+	if sslMode == "" {
+		sslMode = provisioner.DefaultSSLMode
+	}
+
 	return provisioner.ConnectionConfig{
 		Host:          sprout.Spec.Connection.Host,
 		Port:          sprout.Spec.Connection.Port,
 		AdminUser:     string(user),
 		AdminPassword: string(pass),
-		AdminDatabase: "postgres",
+		AdminDatabase: adminDatabase,
+		SSLMode:       sslMode,
 	}, nil
 }
 
+// publishCredentialsSecret creates the tenant Secret on first provision
+// (or after it disappeared), and otherwise updates connection fields
+// (host, port, sslMode, DSN) if they drifted, keeping the stored password.
+func (r *SproutReconciler) publishCredentialsSecret(
+	ctx context.Context,
+	sprout *dbv1alpha1.Sprout,
+	name string,
+	conn provisioner.ConnectionConfig,
+	databaseName string,
+	creds provisioner.Credentials,
+	existing *corev1.Secret,
+	create bool,
+) error {
+	secret := buildSecret(sprout, name, conn, databaseName, creds)
+	if create {
+		if err := controllerutil.SetControllerReference(sprout, secret, r.Scheme); err != nil {
+			return fmt.Errorf("setting owner reference on secret: %w", err)
+		}
+		if err := r.Create(ctx, secret); err != nil {
+			return fmt.Errorf("creating credentials secret: %w", err)
+		}
+		logf.FromContext(ctx).Info("Created credentials Secret", "secret", name, "reason", "missing on reconcile")
+		return nil
+	}
+	if !secretDataDrifted(existing, secret.StringData) {
+		return nil
+	}
+	existing.StringData = secret.StringData
+	if err := r.Update(ctx, existing); err != nil {
+		return fmt.Errorf("updating credentials secret: %w", err)
+	}
+	logf.FromContext(ctx).Info("Updated credentials Secret", "secret", name, "reason", "connection fields drifted")
+	return nil
+}
+
+func secretDataDrifted(existing *corev1.Secret, desired map[string]string) bool {
+	for key, want := range desired {
+		got := ""
+		if existing.Data != nil {
+			got = string(existing.Data[key])
+		}
+		if got != want {
+			return true
+		}
+	}
+	return false
+}
+
 func buildSecret(sprout *dbv1alpha1.Sprout, name string, conn provisioner.ConnectionConfig, databaseName string, creds provisioner.Credentials) *corev1.Secret {
+	sslMode := conn.SSLMode
+	if sslMode == "" {
+		sslMode = provisioner.DefaultSSLMode
+	}
+
 	dsn := (&url.URL{
-		Scheme: "postgresql",
-		User:   url.UserPassword(creds.Username, creds.Password),
-		Host:   fmt.Sprintf("%s:%d", conn.Host, conn.Port),
-		Path:   "/" + databaseName,
+		Scheme:   "postgresql",
+		User:     url.UserPassword(creds.Username, creds.Password),
+		Host:     fmt.Sprintf("%s:%d", conn.Host, conn.Port),
+		Path:     "/" + databaseName,
+		RawQuery: url.Values{"sslmode": {sslMode}}.Encode(),
 	}).String()
 
 	return &corev1.Secret{
@@ -320,6 +382,7 @@ func buildSecret(sprout *dbv1alpha1.Sprout, name string, conn provisioner.Connec
 			secretKeyPGUser:      creds.Username,
 			secretKeyPGPassword:  creds.Password,
 			secretKeyPGDatabase:  databaseName,
+			secretKeyPGSSLMode:   sslMode,
 		},
 	}
 }

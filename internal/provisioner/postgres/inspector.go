@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -111,13 +112,15 @@ func (i *Inspector) RoleConnectionLimit(ctx context.Context, name string) (int32
 }
 
 func (i *Inspector) CanAuthenticate(ctx context.Context, roleName, password, database string) (bool, error) {
-	cfg, err := pgx.ParseConfig(fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=prefer connect_timeout=5",
-		i.admin.Host, i.admin.Port, roleName, password, database,
-	))
+	dsn, err := connString(i.admin, roleName, password, database)
+	if err != nil {
+		return false, err
+	}
+	cfg, err := pgx.ParseConfig(dsn)
 	if err != nil {
 		return false, fmt.Errorf("parsing connection config for role %q: %w", roleName, err)
 	}
+	cfg.ConnectTimeout = 5 * time.Second
 
 	conn, err := pgx.ConnectConfig(ctx, cfg)
 	if err != nil {

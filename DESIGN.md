@@ -90,6 +90,8 @@ spec:
     port: 5432
     adminSecretRef:
       name: postgres-admin-creds    # Secret in the same namespace; keys: username, password
+    adminDatabase: postgres         # optional - defaults to "postgres"
+    sslMode: prefer                 # optional - defaults to prefer
   databaseName: myapp_pr_123        # optional, immutable (CEL) - defaults to a derived name
   connectionLimit: 20               # optional, mutable - defaults to 20
 status:
@@ -127,10 +129,12 @@ The control loop I see is:
    namespace.
    - **Missing** (first reconcile, or deleted out-of-band) → treated as
      a rotation request: `EnsureRole` generates a new password, and the
-     Secret is (re)created.
-   - **Present** → left alone; `EnsureRole` still runs to reconcile
-     mutable properties (currently just `connectionLimit`) but doesn't
-     touch the password.
+     Secret is created.
+   - **Present** → password is left alone; `EnsureRole` still runs to
+     reconcile mutable role properties (currently `connectionLimit`). The
+     Secret's connection fields (`PGHOST`, `PGPORT`, `PGSSLMODE`,
+     `DATABASE_URL`, …) are updated if they drifted from the current spec,
+     using the password already stored in the Secret.
 8. Update `status` (phase, conditions, derived names,
    `observedGeneration`).
 9. Requeue after `resyncInterval` (5m) regardless of outcome. This catches
@@ -181,13 +185,16 @@ finalizer/teardown path. Ships both a full DSN and the discrete pieces,
 since some apps want one and some want the other:
 
 ```
-DATABASE_URL=postgresql://user:pass@host:5432/dbname
+DATABASE_URL=postgresql://user:pass@host:5432/dbname?sslmode=prefer
 PGHOST=host
 PGPORT=5432
 PGUSER=user
 PGPASSWORD=pass
 PGDATABASE=dbname
+PGSSLMODE=prefer
 ```
+
+`sslmode` / `PGSSLMODE` follow `spec.connection.sslMode`.
 
 ## Provider abstraction
 
@@ -224,6 +231,8 @@ I've got some defaults here that make sense for now. How they'll scale, dunno:
 
 - Periodic resync interval: **5 minutes**.
 - Default `connectionLimit` when unset: **20**.
+- Default `connection.sslMode` when unset: **prefer**.
+- Default `connection.adminDatabase` when unset: **postgres**.
 
 ## Testing
 
